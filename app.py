@@ -8,79 +8,231 @@ import os
 import urllib.parse
 from deep_translator import MyMemoryTranslator, GoogleTranslator
 
-st.set_page_config(page_title="NIKKEI 225 QUANT TERMINAL", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="NIKKEI 225 QUANT TERMINAL",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 if "watchlist" not in st.session_state:
     st.session_state.watchlist = []
 
-# 日经225 官方正规日文公司名映射表
-JP_NAME_MAP = {
-    "1332": "ニッスイ", "1605": "INPEX", "1721": "コムシスHD", "1801": "大成建設",
-    "1802": "大林組", "1803": "清水建設", "1808": "長谷工コーポレーション", "1812": "鹿島建設",
-    "1925": "大和ハウス工業", "1928": "積水ハウス", "1963": "日揮HD", "2002": "日清製粉グループ本社",
-    "2269": "明治HD", "2282": "日本ハム", "2501": "サッポロHD", "2502": "アサヒグループHD",
-    "2503": "キリンHD", "2801": "キッコーマン", "2802": "味の素", "2871": "ニチレイ",
-    "2914": "日本たばこ産業 (JT)", "3086": "J.フロント リテイリング", "3099": "三越伊勢丹HD",
-    "3382": "セブン＆アイ・HD", "3401": "帝人", "3402": "東レ", "3405": "クラレ",
-    "3407": "旭化成", "3861": "王子HD", "3863": "日本製紙", "4004": "レゾナック・HD",
-    "4005": "住友化学", "4021": "日産化学", "4042": "東ソー", "4043": "トクヤマ",
-    "4061": "デンカ", "4063": "信越化学工業", "4183": "三井化学", "4188": "三菱ケミカルグループ",
-    "4208": "UBE", "4452": "花王", "4502": "武田薬品工業", "4503": "アステラス製薬",
-    "4506": "住友ファーマ", "4507": "塩野義製薬", "4519": "中外製薬", "4523": "エーザイ",
-    "4568": "第一三共", "4578": "大塚HD", "4631": "DIC", "4689": "LINEヤフー",
-    "4704": "トレンドマイクロ", "4751": "サイバーエージェント", "4755": "楽天グループ",
-    "4901": "富士フイルムHD", "4911": "資生堂", "5019": "出光興産", "5020": "ENEOS HD",
-    "5101": "横浜ゴム", "5108": "ブリヂストン", "5201": "AGC", "5202": "日本板硝子",
-    "5214": "日本電気硝子", "5232": "住友大阪セメント", "5233": "太平洋セメント",
-    "5301": "東海カーボン", "5332": "TOTO", "5333": "日本ガイシ", "5401": "日本製鉄",
-    "5406": "神戸製鋼所", "5411": "JFE HD", "5541": "大平洋金属", "5706": "三井金属鉱業",
-    "5707": "東邦亜鉛", "5711": "三菱マテリアル", "5713": "住友金属鉱山", "5714": "DOWA HD",
-    "5801": "古河電気工業", "5802": "住友電気工業", "5803": "フジクラ", "6113": "アマダ",
-    "6178": "日本郵政", "6301": "小松製作所 (コマツ)", "6302": "住友重機械工業",
-    "6305": "日立建機", "6326": "クボタ", "6361": "荏原製作所", "6367": "ダイキン工業",
-    "6471": "日本精工", "6472": "NTN", "6473": "ジェイテクト", "6479": "ミネベアミツミ",
-    "6501": "日立製作所", "6502": "東芝", "6503": "三菱電機", "6504": "富士電機",
-    "6506": "安川電機", "6526": "ソシオネクスト", "6674": "GSユアサ", "6701": "日本電気 (NEC)",
-    "6702": "富士通", "6703": "沖電気工業", "6723": "ルネサス エレクトロニクス",
-    "6724": "セイコーエプソン", "6752": "パナソニック HD", "6758": "ソニーグループ",
-    "6762": "TDK", "6770": "アルプスアルパイン", "6841": "横河電機", "6857": "アドバンテスト",
-    "6861": "キーエンス", "6902": "デンソー", "6920": "レーザーテック", "6952": "カシオ計算機",
-    "6954": "ファナック", "6971": "京セラ", "6976": "太陽誘電", "6981": "村田製作所",
-    "6988": "日東電工", "7011": "三菱重工業", "7012": "川崎重工業", "7013": "IHI",
-    "7201": "日産自動車", "7202": "いすゞ自動車", "7203": "トヨタ自動車", "7205": "日野自動車",
-    "7211": "三菱自動車工業", "7261": "マツダ", "7267": "本田技研工業 (ホンダ)",
-    "7269": "スズキ", "7270": "SUBARU", "7272": "ヤマハ発動機", "7731": "ニコン",
-    "7733": "オリンパス", "7735": "SCREEN HD", "7741": "HOYA", "7751": "キヤノン",
-    "7752": "リコー", "7762": "シチズン時計", "7911": "TOPPAN HD", "7912": "大日本印刷",
-    "7951": "ヤマハ", "7974": "任天堂", "8001": "伊藤忠商事", "8002": "丸紅",
-    "8015": "豊田通商", "8031": "三井物産", "8035": "東京エレクトロン", "8053": "住友商事",
-    "8058": "三菱商事", "8233": "高島屋", "8252": "丸井グループ", "8267": "イオン",
-    "8304": "あおぞら銀行", "8306": "三菱UFJフィナンシャルG", "8308": "りそなHD",
-    "8309": "三井住友トラストHD", "8316": "三井住友フィナンシャルG", "8331": "千葉銀行",
-    "8354": "ふくおかフィナンシャルG", "8355": "静岡フィナンシャルG", "8411": "みずほフィナンシャルG",
-    "8591": "オリックス", "8601": "大和証券グループ本社", "8604": "野村HD",
-    "8630": "SOMPO HD", "8697": "日本取引所グループ", "8725": "MS&ADインシュアランスG",
-    "8750": "第一生命HD", "8766": "東京海上HD", "8795": "T&D HD", "8801": "三井不動産",
-    "8802": "三菱地所", "8804": "東京建物", "8830": "住友不動産", "9001": "東武鉄道",
-    "9002": "西武HD", "9005": "東急", "9007": "小田急電鉄", "9008": "京王電鉄",
-    "9009": "京成電鉄", "9020": "東日本旅客鉄道 (JR東日本)", "9021": "西日本旅客鉄道 (JR西日本)",
-    "9022": "東海旅客鉄道 (JR東海)", "9064": "ヤマトHD", "9101": "日本郵船",
-    "9104": "商船三井", "9107": "川崎汽船", "9201": "日本航空 (JAL)", "9202": "ANA HD",
-    "9301": "三菱倉庫", "9432": "日本電信電話 (NTT)", "9433": "KDDI", "9434": "ソフトバンク",
-    "9501": "東京電力HD", "9502": "中部電力", "9503": "関西電力", "9531": "東京瓦斯 (東京ガス)",
-    "9532": "大阪瓦斯 (大阪ガス)", "9602": "東宝", "9613": "NTTデータグループ",
-    "9719": "SCSK", "9735": "セコム", "9766": "コナミグループ", "9843": "ニトリHD",
-    "9983": "ファーストリテイリング (ユニクロ)", "9984": "ソフトバンクグループ"
+# 日经225 核心企业官方日文名与企业域名（精准提取日系极简官方矢量标识）
+JP_COMPANIES = {
+    "1332": ("ニッスイ", "nissui.co.jp"),
+    "1605": ("INPEX", "inpex.co.jp"),
+    "1721": ("コムシスHD", "comsys-hd.co.jp"),
+    "1801": ("大成建設", "taisei.co.jp"),
+    "1802": ("大林組", "obayashi.co.jp"),
+    "1803": ("清水建設", "shimz.co.jp"),
+    "1808": ("長谷工コーポレーション", "haseko.co.jp"),
+    "1812": ("鹿島建設", "kajima.co.jp"),
+    "1925": ("大和ハウス工業", "daiwahouse.co.jp"),
+    "1928": ("積水ハウス", "sekisuihouse.co.jp"),
+    "1963": ("日揮HD", "jgc.com"),
+    "2002": ("日清製粉グループ本社", "nisshin.com"),
+    "2269": ("明治HD", "meiji.com"),
+    "2282": ("日本ハム", "nipponham.co.jp"),
+    "2501": ("サッポロHD", "sapporoholdings.jp"),
+    "2502": ("アサヒグループHD", "asahigroup-holdings.com"),
+    "2503": ("キリンHD", "kirinholdings.com"),
+    "2801": ("キッコーマン", "kikkoman.co.jp"),
+    "2802": ("味の素", "ajinomoto.co.jp"),
+    "2871": ("ニチレイ", "nichirei.co.jp"),
+    "2914": ("日本たばこ産業 (JT)", "jti.co.jp"),
+    "3086": ("J.フロント リテイリング", "j-front-retailing.com"),
+    "3099": ("三越伊勢丹HD", "imhds.co.jp"),
+    "3382": ("セブン＆アイ・HD", "7andi.com"),
+    "3401": ("帝人", "teijin.co.jp"),
+    "3402": ("東レ", "toray.co.jp"),
+    "3405": ("クラレ", "kuraray.co.jp"),
+    "3407": ("旭化成", "asahi-kasei.com"),
+    "3861": ("王子HD", "ojiholdings.co.jp"),
+    "3863": ("日本製紙", "nipponpapergroup.com"),
+    "4004": ("レゾナック・HD", "resonac.com"),
+    "4005": ("住友化学", "sumitomo-chem.co.jp"),
+    "4021": ("日産化学", "nissanchem.co.jp"),
+    "4042": ("東ソー", "tosoh.co.jp"),
+    "4043": ("トクヤマ", "tokuyama.co.jp"),
+    "4061": ("デンカ", "denka.co.jp"),
+    "4063": ("信越化学工業", "shinetsu.co.jp"),
+    "4183": ("三井化学", "mitsuichemicals.com"),
+    "4188": ("三菱ケミカルグループ", "mcgc.com"),
+    "4208": ("UBE", "ube.com"),
+    "4452": ("花王", "kao.com"),
+    "4502": ("武田薬品工業", "takeda.com"),
+    "4503": ("アステラス製薬", "astellas.com"),
+    "4506": ("住友ファーマ", "sumitomo-pharma.co.jp"),
+    "4507": ("塩野義製薬", "shionogi.com"),
+    "4519": ("中外製薬", "chugai-pharm.co.jp"),
+    "4523": ("エーザイ", "eisai.co.jp"),
+    "4568": ("第一三共", "daiichisankyo.co.jp"),
+    "4578": ("大塚HD", "otsuka.com"),
+    "4631": ("DIC", "dic-global.com"),
+    "4689": ("LINEヤフー", "lycorp.co.jp"),
+    "4704": ("トレンドマイクロ", "trendmicro.com"),
+    "4751": ("サイバーエージェント", "cyberagent.co.jp"),
+    "4755": ("楽天グループ", "rakuten.co.jp"),
+    "4901": ("富士フイルムHD", "fujifilm.com"),
+    "4911": ("資生堂", "shiseido.com"),
+    "5019": ("出光興産", "idemitsu.com"),
+    "5020": ("ENEOS HD", "eneos.co.jp"),
+    "5101": ("横浜ゴム", "y-yokohama.com"),
+    "5108": ("ブリヂストン", "bridgestone.co.jp"),
+    "5201": ("AGC", "agc.com"),
+    "5202": ("日本板硝子", "nsg.com"),
+    "5214": ("日本電気硝子", "neg.co.jp"),
+    "5232": ("住友大阪セメント", "soc.co.jp"),
+    "5233": ("太平洋セメント", "taiheiyo-cement.co.jp"),
+    "5301": ("東海カーボン", "tokaicarbon.co.jp"),
+    "5332": ("TOTO", "toto.com"),
+    "5333": ("日本ガイシ", "ngk.co.jp"),
+    "5401": ("日本製鉄", "nipponsteel.com"),
+    "5406": ("神戸製鋼所", "kobelco.co.jp"),
+    "5411": ("JFE HD", "jfe-holdings.co.jp"),
+    "5541": ("大平洋金属", "pacific-metals.co.jp"),
+    "5706": ("三井金属鉱業", "mitsui-kinzoku.co.jp"),
+    "5707": ("東邦亜鉛", "toho-zinc.co.jp"),
+    "5711": ("三菱マテリアル", "mmc.co.jp"),
+    "5713": ("住友金属鉱山", "smm.co.jp"),
+    "5714": ("DOWA HD", "dowa.co.jp"),
+    "5801": ("古河電気工業", "furukawa.co.jp"),
+    "5802": ("住友電気工業", "sei.co.jp"),
+    "5803": ("フジクラ", "fujikura.co.jp"),
+    "6113": ("アマダ", "amada.co.jp"),
+    "6178": ("日本郵政", "japanpost.jp"),
+    "6301": ("小松製作所 (コマツ)", "komatsu.jp"),
+    "6302": ("住友重機械工業", "shi.co.jp"),
+    "6305": ("日立建機", "hitachicm.com"),
+    "6326": ("クボタ", "kubota.co.jp"),
+    "6361": ("荏原製作所", "ebara.co.jp"),
+    "6367": ("ダイキン工業", "daikin.co.jp"),
+    "6471": ("日本精工", "nsk.com"),
+    "6472": ("NTN", "ntn.co.jp"),
+    "6473": ("ジェイテクト", "jtekt.co.jp"),
+    "6479": ("ミネベアミツミ", "minebeamitsumi.com"),
+    "6501": ("日立製作所", "hitachi.co.jp"),
+    "6502": ("東芝", "global.toshiba"),
+    "6503": ("三菱電機", "mitsubishielectric.co.jp"),
+    "6504": ("富士電機", "fujielectric.co.jp"),
+    "6506": ("安川電機", "yaskawa.co.jp"),
+    "6526": ("ソシオネクスト", "socionext.com"),
+    "6674": ("GSユアサ", "gs-yuasa.com"),
+    "6701": ("日本電気 (NEC)", "nec.com"),
+    "6702": ("富士通", "fujitsu.com"),
+    "6703": ("沖電気工業", "oki.com"),
+    "6723": ("ルネサス エレクトロニクス", "renesas.com"),
+    "6724": ("セイコーエプソン", "epson.jp"),
+    "6752": ("パナソニック HD", "panasonic.com"),
+    "6758": ("ソニーグループ", "sony.com"),
+    "6762": ("TDK", "tdk.com"),
+    "6770": ("アルプスアルパイン", "alpsalpine.com"),
+    "6841": ("横河電機", "yokogawa.co.jp"),
+    "6857": ("アドバンテスト", "advantest.com"),
+    "6861": ("キーエンス", "keyence.co.jp"),
+    "6902": ("デンソー", "denso.com"),
+    "6920": ("レーザーテック", "lasertec.co.jp"),
+    "6952": ("カシオ計算機", "casio.com"),
+    "6954": ("ファナック", "fanuc.co.jp"),
+    "6971": ("京セラ", "kyocera.co.jp"),
+    "6976": ("太陽誘電", "yuden.co.jp"),
+    "6981": ("村田製作所", "murata.com"),
+    "6988": ("日東電工", "nitto.com"),
+    "7011": ("三菱重工業", "mhi.com"),
+    "7012": ("川崎重工業", "khi.co.jp"),
+    "7013": ("IHI", "ihi.co.jp"),
+    "7201": ("日産自動車", "nissan-global.com"),
+    "7202": ("いすゞ自動車", "isuzu.co.jp"),
+    "7203": ("トヨタ自動車", "toyota.jp"),
+    "7205": ("日野自動車", "hino.co.jp"),
+    "7211": ("三菱自動車工業", "mitsubishi-motors.com"),
+    "7261": ("マツダ", "mazda.co.jp"),
+    "7267": ("本田技研工業 (ホンダ)", "honda.co.jp"),
+    "7269": ("スズキ", "suzuki.co.jp"),
+    "7270": ("SUBARU", "subaru.co.jp"),
+    "7272": ("ヤマハ発動機", "yamaha-motor.co.jp"),
+    "7731": ("ニコン", "nikon.co.jp"),
+    "7733": ("オリンパス", "olympus.co.jp"),
+    "7735": ("SCREEN HD", "screen.co.jp"),
+    "7741": ("HOYA", "hoya.co.jp"),
+    "7751": ("キヤノン", "canon.jp"),
+    "7752": ("リコー", "ricoh.co.jp"),
+    "7762": ("シチズン時計", "citizen.co.jp"),
+    "7911": ("TOPPAN HD", "holdings.toppan.com"),
+    "7912": ("大日本印刷", "dnp.co.jp"),
+    "7951": ("ヤマハ", "yamaha.com"),
+    "7974": ("任天堂", "nintendo.co.jp"),
+    "8001": ("伊藤忠商事", "itochu.co.jp"),
+    "8002": ("丸紅", "marubeni.com"),
+    "8015": ("豊田通商", "toyota-tsusho.com"),
+    "8031": ("三井物産", "mitsui.com"),
+    "8035": ("東京エレクトロン", "tel.co.jp"),
+    "8053": ("住友商事", "sumitomocorp.com"),
+    "8058": ("三菱商事", "mitsubishicorp.com"),
+    "8233": ("高島屋", "takashimaya.co.jp"),
+    "8252": ("丸井グループ", "0101maruigroup.co.jp"),
+    "8267": ("イオン", "aeon.info"),
+    "8304": ("あおぞら銀行", "aozorabank.co.jp"),
+    "8306": ("三菱UFJフィナンシャルG", "mufg.jp"),
+    "8308": ("りそなHD", "resona-gr.co.jp"),
+    "8309": ("三井住友トラストHD", "smth.jp"),
+    "8316": ("三井住友フィナンシャルG", "smfg.co.jp"),
+    "8331": ("千葉銀行", "chibabank.co.jp"),
+    "8354": ("ふくおかフィナンシャルG", "fukuoka-fg.com"),
+    "8355": ("静岡フィナンシャルG", "shizuoka-fg.co.jp"),
+    "8411": ("みずほフィナンシャルG", "mizuho-fg.co.jp"),
+    "8591": ("オリックス", "orix.co.jp"),
+    "8601": ("大和証券グループ本社", "daiwa-grp.jp"),
+    "8604": ("野村HD", "nomuraholdings.com"),
+    "8630": ("SOMPO HD", "sompo-hd.com"),
+    "8697": ("日本取引所グループ", "jpx.co.jp"),
+    "8725": ("MS&ADインシュアランスG", "ms-ad-hd.com"),
+    "8750": ("第一生命HD", "dai-ichi-life-hd.com"),
+    "8766": ("東京海上HD", "tokiomarinehd.com"),
+    "8795": ("T&D HD", "td-hd.co.jp"),
+    "8801": ("三井不動産", "mitsuifudosan.co.jp"),
+    "8802": ("三菱地所", "mec.co.jp"),
+    "8804": ("東京建物", "tatemono.com"),
+    "8830": ("住友不動産", "sumitomo-rd.co.jp"),
+    "9001": ("東武鉄道", "tobu.co.jp"),
+    "9002": ("西武HD", "seibu-holdings.co.jp"),
+    "9005": ("東急", "tokyu.co.jp"),
+    "9007": ("小田急電鉄", "odakyu.jp"),
+    "9008": ("京王電鉄", "keio.co.jp"),
+    "9009": ("京成電鉄", "keisei.co.jp"),
+    "9020": ("東日本旅客鉄道 (JR東日本)", "jreast.co.jp"),
+    "9021": ("西日本旅客鉄道 (JR西日本)", "westjr.co.jp"),
+    "9022": ("東海旅客鉄道 (JR東海)", "jr-central.co.jp"),
+    "9064": ("ヤマトHD", "yamato-hd.co.jp"),
+    "9101": ("日本郵船", "nyk.com"),
+    "9104": ("商船三井", "mol.co.jp"),
+    "9107": ("川崎汽船", "kline.co.jp"),
+    "9201": ("日本航空 (JAL)", "jal.com"),
+    "9202": ("ANA HD", "ana.co.jp"),
+    "9301": ("三菱倉庫", "mitsubishi-logistics.co.jp"),
+    "9432": ("日本電信電話 (NTT)", "group.ntt"),
+    "9433": ("KDDI", "kddi.com"),
+    "9434": ("ソフトバンク", "softbank.jp"),
+    "9501": ("東京電力HD", "tepco.co.jp"),
+    "9502": ("中部電力", "chuden.co.jp"),
+    "9503": ("関西電力", "kepco.co.jp"),
+    "9531": ("東京瓦斯 (東京ガス)", "tokyo-gas.co.jp"),
+    "9532": ("大阪瓦斯 (大阪ガス)", "osakagas.co.jp"),
+    "9602": ("東宝", "toho.co.jp"),
+    "9613": ("NTTデータグループ", "nttdata.com"),
+    "9719": ("SCSK", "scsk.jp"),
+    "9735": ("セコム", "secom.co.jp"),
+    "9766": ("コナミグループ", "konami.com"),
+    "9843": ("ニトリHD", "nitorihd.co.jp"),
+    "9983": ("ファーストリテイリング (ユニクロ)", "fastretailing.com"),
+    "9984": ("ソフトバンクグループ", "group.softbank")
 }
 
-# 彭博式日股印鉴 Logo：提取公司名首字/核心文字生成极简徽章
-def get_bloomberg_logo_url(company_name):
-    # 提取有辨识度的首字（跳过无意义符号）
-    clean_name = company_name.strip("・ (（")
-    char = clean_name[:1] if clean_name else "株"
-    encoded_char = urllib.parse.quote(char)
-    # 深邃暗夜背景 + 柔和荧光白/天青文字 + 极简倒角
-    return f"https://ui-avatars.com/api/?name={encoded_char}&background=131b2e&color=38bdf8&rounded=false&bold=true&size=96&font-size=0.55"
+# 提取日企官方矢量极简 Logo (Google 128px 高清透明矢标)
+def get_clean_company_logo(code):
+    item = JP_COMPANIES.get(str(code))
+    domain = item[1] if item else f"{code}.co.jp"
+    return f"https://www.google.com/s2/favicons?domain={domain}&sz=128"
 
 # 翻译至中文
 @st.cache_data(ttl=604800)
@@ -118,29 +270,50 @@ def translate_to_ja(text):
         pass
     return ""
 
-# Meiryo 字体族与专业量化终端样式
+# 强制消除浅色块，深度定制日系暗黑微光 Meiryo 设计
 st.markdown("""
 <style>
+    /* 全局强制 Meiryo 字体与极黑底色 */
     html, body, [class*="css"], .stApp {
         font-family: "Meiryo", "メイリオ", "Meiryo UI", sans-serif !important;
         background-color: #080a0f !important;
-        color: #f1f5f9;
+        color: #f1f5f9 !important;
     }
-    section[data-testid="stSidebar"] {
-        background-color: #0a0d14 !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+    
+    /* 强制重构输入框、多选框（彻底消除白块） */
+    div[data-baseweb="select"] > div {
+        background-color: #0f172a !important;
+        border: 1px solid rgba(56, 189, 248, 0.3) !important;
+        color: #f1f5f9 !important;
     }
     div[data-baseweb="select"] span[data-baseweb="tag"],
     span[data-baseweb="tag"] {
-        background-color: #162032 !important;
+        background-color: #162238 !important;
         border: 1px solid #38bdf8 !important;
         border-radius: 4px !important;
     }
     div[data-baseweb="select"] span[data-baseweb="tag"] span {
         color: #38bdf8 !important;
         font-family: "Meiryo", sans-serif !important;
-        font-weight: bold !important;
+        font-weight: 600 !important;
     }
+    
+    /* 表格容器暗黑融合（消灭整个白色大方块） */
+    [data-testid="stDataFrame"] {
+        background-color: #080a0f !important;
+        border: 1px solid rgba(56, 189, 248, 0.2) !important;
+        border-radius: 8px !important;
+        overflow: hidden !important;
+    }
+    div[data-testid="stDataFrame"] > div {
+        background-color: #080a0f !important;
+    }
+
+    section[data-testid="stSidebar"] {
+        background-color: #0a0d14 !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+    }
+
     .cyber-title {
         font-size: 2.0rem;
         font-weight: 800;
@@ -221,7 +394,8 @@ def clean_dividend(val):
 def load_data():
     df = pd.read_csv(CSV_PATH)
     df['日股代码'] = df['日股代码'].astype(str)
-    df['会社名'] = df['日股代码'].map(lambda c: JP_NAME_MAP.get(c, df.loc[df['日股代码']==c, '公司名称'].values[0]))
+    # 注入公司标准日文名称
+    df['会社名'] = df['日股代码'].map(lambda c: JP_COMPANIES.get(c, (df.loc[df['日股代码']==c, '公司名称'].values[0], ''))[0])
     if "股息率 (%)" in df.columns:
         df["股息率 (%)"] = df["股息率 (%)"].apply(clean_dividend)
     return df
@@ -263,8 +437,8 @@ with tab_screener:
 
     display_df = filtered.copy().reset_index(drop=True)
     
-    # 彭博式公司名称汉字/假名印鉴徽章
-    display_df['ロゴ'] = display_df['会社名'].apply(get_bloomberg_logo_url)
+    # 优雅的官方极简矢量标识
+    display_df['ロゴ'] = display_df['日股代码'].apply(get_clean_company_logo)
     
     cols = ['ロゴ', '日股代码', '会社名', '行业板块', '现价 (¥)', '市值 (兆¥)', '滚动PE', 'ROE (%)', '营收增速 (%)', '股息率 (%)', '偏离50日线 (%)']
     final_cols = [c for c in cols if c in display_df.columns]
@@ -314,12 +488,14 @@ with tab_screener:
         t = yf.Ticker(sel_ticker)
         hist = t.history(period='max' if sel_p == '5y' else '2y')
         s_row = df_raw[df_raw['日股代码'] == sel_code].iloc[0]
-        stamp_url = get_bloomberg_logo_url(s_row['会社名'])
+        logo_url = get_clean_company_logo(sel_code)
         
-        # 铭牌区：与表格完全一致的印鉴徽章
+        # 铭牌区：日系极简现代平面卡片
         st.markdown(f"""
         <div style="display: flex; align-items: center; gap: 16px; background: rgba(15, 23, 42, 0.85); padding: 12px 18px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.25); margin-bottom: 14px;">
-            <img src="{stamp_url}" style="width: 44px; height: 44px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.4); box-shadow: 0 0 10px rgba(56, 189, 248, 0.2);">
+            <div style="background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 6px; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px;">
+                <img src="{logo_url}" style="width: 32px; height: 32px; object-fit: contain;">
+            </div>
             <div>
                 <div style="font-size: 1.45rem; font-weight: 700; color: #f1f5f9;">
                     {sel_code} <span style="margin-left: 6px; color: #ffffff;">{s_row['会社名']}</span>
@@ -381,7 +557,7 @@ with tab_watchlist:
         st.info('お気に入り銘柄がありません。「日経クオンツスクリーナー」タブから【➕ お気に入り登録】で追加できます。')
     else:
         w_df = df_raw[df_raw['日股代码'].isin(st.session_state.watchlist)].copy().reset_index(drop=True)
-        w_df['ロゴ'] = w_df['会社名'].apply(get_bloomberg_logo_url)
+        w_df['ロゴ'] = w_df['日股代码'].apply(get_clean_company_logo)
         watch_cols = ['ロゴ', '日股代码', '会社名', '行业板块', '现价 (¥)', '市值 (兆¥)', '滚动PE', 'ROE (%)', '股息率 (%)', '偏离50日线 (%)']
         st.dataframe(
             w_df[watch_cols],
