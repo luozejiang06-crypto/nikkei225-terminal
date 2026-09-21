@@ -17,11 +17,11 @@ st.set_page_config(
 if "watchlist" not in st.session_state:
     st.session_state.watchlist = []
 
-# 日经225 核心企业官方日文名与企业域名（精准提取日系极简官方矢量标识）
+# 日经225 核心企业官方日文名与企业官方主站域名
 JP_COMPANIES = {
     "1332": ("ニッスイ", "nissui.co.jp"),
     "1605": ("INPEX", "inpex.co.jp"),
-    "1721": ("コムシスHD", "comsys-hd.co.jp"),
+    "1721": ("コムシスHD", "comsys.co.jp"),
     "1801": ("大成建設", "taisei.co.jp"),
     "1802": ("大林組", "obayashi.co.jp"),
     "1803": ("清水建設", "shimz.co.jp"),
@@ -39,7 +39,7 @@ JP_COMPANIES = {
     "2801": ("キッコーマン", "kikkoman.co.jp"),
     "2802": ("味の素", "ajinomoto.co.jp"),
     "2871": ("ニチレイ", "nichirei.co.jp"),
-    "2914": ("日本たばこ産業 (JT)", "jti.co.jp"),
+    "2914": ("日本たばこ産業 (JT)", "jti.com"),
     "3086": ("J.フロント リテイリング", "j-front-retailing.com"),
     "3099": ("三越伊勢丹HD", "imhds.co.jp"),
     "3382": ("セブン＆アイ・HD", "7andi.com"),
@@ -228,7 +228,7 @@ JP_COMPANIES = {
     "9984": ("ソフトバンクグループ", "group.softbank")
 }
 
-# 提取日企官方矢量极简 Logo (Google 128px 高清透明矢标)
+# 提取日企官方矢量极简 Logo
 def get_clean_company_logo(code):
     item = JP_COMPANIES.get(str(code))
     domain = item[1] if item else f"{code}.co.jp"
@@ -270,25 +270,37 @@ def translate_to_ja(text):
         pass
     return ""
 
-# 强制消除浅色块，深度定制日系暗黑微光 Meiryo 设计
+# 强力层级 CSS：彻底消除侧边栏及所有输入组件的白块
 st.markdown("""
 <style>
-    /* 全局强制 Meiryo 字体与极黑底色 */
+    /* 全局强制定调 */
     html, body, [class*="css"], .stApp {
         font-family: "Meiryo", "メイリオ", "Meiryo UI", sans-serif !important;
         background-color: #080a0f !important;
         color: #f1f5f9 !important;
     }
     
-    /* 强制重构输入框、多选框（彻底消除白块） */
+    /* 彻底消灭左侧栏白底 */
+    section[data-testid="stSidebar"] {
+        background-color: #0b0f19 !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+    }
+    
+    /* 强制多选下拉框与单选框暗黑化 */
+    div[data-baseweb="select"] {
+        background-color: #0f172a !important;
+        border-radius: 6px !important;
+    }
     div[data-baseweb="select"] > div {
         background-color: #0f172a !important;
         border: 1px solid rgba(56, 189, 248, 0.3) !important;
         color: #f1f5f9 !important;
     }
+    
+    /* 标签药丸 */
     div[data-baseweb="select"] span[data-baseweb="tag"],
     span[data-baseweb="tag"] {
-        background-color: #162238 !important;
+        background-color: #1e293b !important;
         border: 1px solid #38bdf8 !important;
         border-radius: 4px !important;
     }
@@ -297,21 +309,13 @@ st.markdown("""
         font-family: "Meiryo", sans-serif !important;
         font-weight: 600 !important;
     }
-    
-    /* 表格容器暗黑融合（消灭整个白色大方块） */
-    [data-testid="stDataFrame"] {
-        background-color: #080a0f !important;
-        border: 1px solid rgba(56, 189, 248, 0.2) !important;
-        border-radius: 8px !important;
-        overflow: hidden !important;
-    }
-    div[data-testid="stDataFrame"] > div {
-        background-color: #080a0f !important;
-    }
 
-    section[data-testid="stSidebar"] {
-        background-color: #0a0d14 !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+    /* 下拉弹窗列表彻底去白 */
+    div[data-baseweb="popover"],
+    div[data-baseweb="menu"],
+    ul[role="listbox"] {
+        background-color: #0f172a !important;
+        color: #f1f5f9 !important;
     }
 
     .cyber-title {
@@ -394,7 +398,6 @@ def clean_dividend(val):
 def load_data():
     df = pd.read_csv(CSV_PATH)
     df['日股代码'] = df['日股代码'].astype(str)
-    # 注入公司标准日文名称
     df['会社名'] = df['日股代码'].map(lambda c: JP_COMPANIES.get(c, (df.loc[df['日股代码']==c, '公司名称'].values[0], ''))[0])
     if "股息率 (%)" in df.columns:
         df["股息率 (%)"] = df["股息率 (%)"].apply(clean_dividend)
@@ -436,8 +439,6 @@ with tab_screener:
     c3.metric('絞り込み収束率', f'{round(len(filtered) / len(df_raw) * 100, 1) if len(df_raw) > 0 else 0}%')
 
     display_df = filtered.copy().reset_index(drop=True)
-    
-    # 优雅的官方极简矢量标识
     display_df['ロゴ'] = display_df['日股代码'].apply(get_clean_company_logo)
     
     cols = ['ロゴ', '日股代码', '会社名', '行业板块', '现价 (¥)', '市值 (兆¥)', '滚动PE', 'ROE (%)', '营收增速 (%)', '股息率 (%)', '偏离50日线 (%)']
@@ -490,7 +491,6 @@ with tab_screener:
         s_row = df_raw[df_raw['日股代码'] == sel_code].iloc[0]
         logo_url = get_clean_company_logo(sel_code)
         
-        # 铭牌区：日系极简现代平面卡片
         st.markdown(f"""
         <div style="display: flex; align-items: center; gap: 16px; background: rgba(15, 23, 42, 0.85); padding: 12px 18px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.25); margin-bottom: 14px;">
             <div style="background: #0f172a; border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 6px; display: flex; align-items: center; justify-content: center; width: 48px; height: 48px;">
@@ -512,7 +512,6 @@ with tab_screener:
         k4.metric('ROE (自己資本利益率)', f"{s_row['ROE (%)']:.1f}%" if pd.notnull(s_row['ROE (%)']) else '--')
         k5.metric('配当利回り', f"{s_row['股息率 (%)']:.2f}%" if pd.notnull(s_row['股息率 (%)']) else '--')
 
-        # 紧凑双栏业务速览
         stock_info = t.info
         raw_sum = stock_info.get("longBusinessSummary", "")
         if raw_sum:
